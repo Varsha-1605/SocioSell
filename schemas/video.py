@@ -1,23 +1,97 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, UploadFile, Form, File
 from models.video import Video
 from models.videoListing import VideoListing, ProductLink
 from models.analyticsVideo import VideoAnalytics, VideoAudience, VideoEngagement, VideoPerformance  
 from bson import ObjectId
-from typing import Optional
-from fastapi import File, UploadFile, Form
+from typing import Optional, List, Union
 from video_data import VIDEO_DATABASE
 from datetime import datetime
-    
+from PIL import Image
+import cv2
+import os
+import tempfile
+
 router = APIRouter()
+
+# Load environment variables
+MAX_VIDEO_LENGTH = int(os.getenv("MAX_VIDEO_LENGTH", 20) * 60)  # Default to 1200 seconds (20 minutes)
+MAX_FILE_SIZE = int(os.getenv("MAX_FILE_SIZE", 100) * 1024 * 1024)  # Default to 100MB
+ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png"]
+ALLOWED_VIDEO_TYPES = ["video/mp4", "video/mkv"]
+ALLOWED_IMAGE_HEIGHT = int(os.getenv("ALLOWED_IMAGE_HEIGHT", 600))
+ALLOWED_IMAGE_WIDTH = int(os.getenv("ALLOWED_IMAGE_WIDTH", 800))
+
+def validate_file(file: UploadFile):
+    # Validate file type
+    if file.content_type not in ALLOWED_IMAGE_TYPES + ALLOWED_VIDEO_TYPES:
+        raise HTTPException(status_code=400, detail="Unsupported file type")
+
+    # Validate file size
+    file.file.seek(0, os.SEEK_END)
+    file_size = file.file.tell()
+    file.file.seek(0, os.SEEK_SET)
+    if file_size > MAX_FILE_SIZE:
+        raise HTTPException(status_code=400, detail="File size exceeds the maximum limit")
+
+    # Validate video length if it's a video file
+    if file.content_type in ALLOWED_VIDEO_TYPES:
+        video_length = get_video_length(file)
+        if video_length > MAX_VIDEO_LENGTH:
+            raise HTTPException(status_code=400, detail="Video length exceeds the maximum limit")
+
+    # Validate image dimensions if it's an image file
+    if file.content_type in ALLOWED_IMAGE_TYPES:
+        validate_image_dimensions(file)
+
+def get_video_length(file: UploadFile):
+    # Save the uploaded file to a temporary location
+    with tempfile.NamedTemporaryFile(delete=False) as temp_file:
+        temp_file.write(file.file.read())
+        temp_file_path = temp_file.name
+
+    # Use OpenCV to get video length
+    video = cv2.VideoCapture(temp_file_path)
+    if not video.isOpened():
+        raise HTTPException(status_code=400, detail="Cannot open video file")
+    fps = video.get(cv2.CAP_PROP_FPS)
+    frame_count = video.get(cv2.CAP_PROP_FRAME_COUNT)
+    video_length = frame_count / fps
+
+    # Clean up the temporary file
+    os.remove(temp_file_path)
+
+    return video_length
+
+def validate_image_dimensions(file: UploadFile):
+    # Use PIL to get image dimensions
+    image = Image.open(file.file)
+    width, height = image.size
+    if width < ALLOWED_IMAGE_WIDTH or height < ALLOWED_IMAGE_HEIGHT:
+        raise HTTPException(status_code=400, detail="Image dimensions are too small")
 
 # Upload and analyze a product video for listing generation.
 async def upload_video(
-    file: Optional[UploadFile] = File(None),  # Made file optional
+    file: Union[UploadFile, List[UploadFile]] = File(...),  # Accept single or multiple files
     title: str = Form(...),
     description: Optional[str] = Form(None)
 ):
     from main import logger
     try:
+        # Convert single file to list if needed
+        files = []
+        if isinstance(file, list):
+            files = file
+        else:
+            files = [file]
+        
+        if len(files) > 3:
+            raise HTTPException(status_code=400, detail="You can upload a maximum of 3 files")
+
+        # Validate each uploaded file
+        for file in files:
+            if file is None:
+                continue
+            validate_file(file)
         # Common keywords for each category
         category_keywords = {
             "electronics": ["iphone", "macbook", "samsung", "laptop", "phone", "computer", "tech"],
@@ -48,7 +122,7 @@ async def upload_video(
 
         # Generate unique video ID
         unique_id = f"video_{abs(hash(title))}"[:15]
-
+        
         # Generate response based on category
         video_info = {
             "electronics": {
@@ -154,6 +228,9 @@ async def upload_video(
                 ]
             }
         }
+    except HTTPException as e:
+        logger.error(f"Validation error: {e.detail}")
+        return {"status": "error", "message": e.detail}
 
     except Exception as e:
         logger.error(f"Error processing video request: {str(e)}")

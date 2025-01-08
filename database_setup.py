@@ -2,13 +2,16 @@ from pymongo import MongoClient, ASCENDING
 from pymongo.server_api import ServerApi
 import logging
 from datetime import datetime
+import os
+from dotenv import load_dotenv
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 def setup_product_database():
     """Setup product reference database with sample data"""
-    uri = "add your string"
+    load_dotenv()
+    uri = os.getenv("MONGODB_URL")
     
     try:
         client = MongoClient(uri, server_api=ServerApi('1'))
