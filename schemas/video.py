@@ -10,8 +10,9 @@ from PIL import Image
 import cv2
 import os
 import tempfile
+from dotenv import load_dotenv
 
-router = APIRouter()
+load_dotenv()
 
 # Load environment variables
 MAX_VIDEO_LENGTH = int(os.getenv("MAX_VIDEO_LENGTH", 20) * 60)  # Default to 1200 seconds (20 minutes)
