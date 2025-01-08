@@ -6,9 +6,10 @@ import logging
 import os
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from routers import image, video, combined
 from dotenv import load_dotenv
+from time import time
 
 # Configure logging
 logging.basicConfig(
@@ -68,6 +69,34 @@ templates = Jinja2Templates(directory="templates")
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
     return templates.TemplateResponse("index.html", {"request": request})
+
+@app.get("/health",tags=["Monitoring"])
+async def health_check():
+    """
+        Health check endpoint to monitor MongoDB connection and response time.
+    """
+
+    start_time = time()
+    try:
+        await db.command("ping")
+        db_status = "connected"
+    except Exception as e:
+        db_status = f"disconnected: {str(e)}"
+
+    response_time = round((time() - start_time) * 1000, 2)
+    status_code = 200 if db_status == "connected" else 500
+
+    # Log status
+    logger.info(f"Health Check: DB status - {db_status}, Response Time - {response_time}ms")
+
+    return JSONResponse(
+        content={
+            "status": "healthy" if db_status == "connected" else "unhealthy",
+            "db_status": db_status,
+            "response_time_ms": response_time
+        },
+        status_code=status_code
+    )
 
 if __name__ == "__main__":
     import uvicorn

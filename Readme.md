@@ -258,6 +258,11 @@ uvicorn main:app --reload
     <td>GET</td>
     <td>Compare products</td>
   </tr>
+  <tr>
+    <td><code>/health</code></td>
+    <td>GET</td>
+    <td>Check health status of DB</td>
+  </tr>
 </table>
 
 ## 🤝 Contributing
