@@ -1,8 +1,9 @@
 import google.generativeai as genai
-from fastapi import FastAPI, Request, UploadFile, HTTPException, File
+from fastapi import FastAPI, Request, UploadFile, HTTPException, File, Form
 from flask import request
 from motor.motor_asyncio import AsyncIOMotorClient
 import logging
+import io
 import os
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -121,6 +122,42 @@ async def pool_stats():
     except Exception as e:
         logger.error(f"Error fetching pool stats: {e}")
         return JSONResponse(content={"error": str(e)}, status_code=500)
+
+
+@app.post("/generate_listings")
+async def generate_listings(request: Request, file: UploadFile = Form(...), productTitle: str = Form(...), caption: str = Form(None)):
+    try:
+        # Read the uploaded image file directly using file.file
+        image = Image.open(file.file)
+
+        # Call your product_listing function
+        raw_response = await image_processor.product_listing(image=image, title=productTitle, caption=caption)
+
+        if raw_response.get("status") == "error":
+            raise HTTPException(status_code=500, detail=raw_response.get("message"))
+
+            # Generate dynamic recommendations (you'll need to define this function elsewhere)
+        recommendations = await generate_recommendations(raw_response)
+
+        # Combine analysis and recommendations
+        result = {**raw_response, "recommendations": recommendations}
+
+        # Return the response based on client request
+        accept_header = request.headers.get("accept", "").lower()
+        if "application/json" in accept_header:
+            return JSONResponse(content=result, status_code=200)
+        else:
+            return templates.TemplateResponse(
+                "result.html",
+                {"request": request, "result": result}
+            )
+    except Exception as e:
+        logger.error(f"Error processing image: {str(e)}")
+        return JSONResponse(
+            content={"status": "error", "message": "Failed to process image"},
+            status_code=500
+        )
+
 
 
 @app.post("/upload_image")
