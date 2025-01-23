@@ -16,6 +16,8 @@ import time
 import yt_dlp as youtube_dl
 import backoff
 from functools import wraps
+from dotenv import load_dotenv
+from typing import Optional
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -64,17 +66,18 @@ class TokenBucket:
         self.waiting = False
 
 class VideoProcessor:
-    def __init__(self, google_api_key):
-        self.api_key = google_api_key
+    def __init__(self):
+        load_dotenv()
+        self.api_key = os.getenv('GOOGLE_API_KEY')
         self.rate_limiter = TokenBucket(tokens_per_second=0.05)
         
-        genai.configure(api_key=google_api_key)
+        genai.configure(api_key= os.getenv('GOOGLE_API_KEY'))
         self.model = genai.GenerativeModel('gemini-1.5-pro-latest')
         
         self.ffmpeg_path = r"C:/ProgramData/chocolatey/lib/ffmpeg/tools/ffmpeg/bin/ffmpeg.exe"
         if not os.path.exists(self.ffmpeg_path):
             raise RuntimeError(f"FFmpeg not found at: {self.ffmpeg_path}")
-        
+        self.ffmpeg_path = "ffmpeg"  
         self.audio_processor = Wav2Vec2Processor.from_pretrained("facebook/wav2vec2-base-960h")
         self.audio_model = Wav2Vec2ForCTC.from_pretrained("facebook/wav2vec2-base-960h")
         
@@ -279,3 +282,68 @@ Please provide a well-structured description that includes:
                     
         except Exception as e:
             return {'status': 'error', 'message': str(e)}
+
+    async def analyze_video(self, video_path: str, thumbnail_image: Optional[bytes] = None):
+        """Analyze video content and generate recommendations"""
+        try:
+            # Prepare analysis prompt
+            analysis_prompt = f"""Analyze the video/thumbnail and provide detailed product recommendations. 
+            Format your response exactly like this:
+
+BEGIN_ANALYSIS
+Video Product: [main product or theme in the video]
+Category: [main category]
+Description: [2-3 sentence description of the product/video theme]
+
+Recommendations:
+1. [Product 1 Name]
+   - Price: [Price]
+   - Key Similarities: [2-3 matching features]
+2. [Product 2 Name]
+   - Price: [Price]
+   - Key Similarities: [2-3 matching features]
+3. [Product 3 Name]
+   - Price: [Price]
+   - Key Similarities: [2-3 matching features]
+4. [Product 4 Name]
+   - Price: [Price]
+   - Key Similarities: [2-3 matching features]
+5. [Product 5 Name]
+   - Price: [Price]
+   - Key Similarities: [2-3 matching features]
+END_ANALYSIS"""
+
+            # Prepare inputs
+            inputs = [analysis_prompt]
+            if thumbnail_image:
+                inputs.append(thumbnail_image)
+
+            # Generate content
+            response = self.model.generate_content(inputs)
+            analysis_dict = self._parse_analysis(response.text)
+            analysis_dict['status'] = 'success'
+            
+            return analysis_dict
+            
+        except Exception as e:
+            logger.error(f"Error in analyze_video: {str(e)}")
+            return {
+                'status': 'error',
+                'message': str(e)
+            }
+    
+    def _parse_analysis(self, text):
+        """Parse the analysis text into structured format"""
+        # Use similar parsing logic as in ImageProcessor
+        analysis_dict = {
+            'video_product': '',
+            'category': '',
+            'description': '',
+            'recommendations': []
+        }
+        
+        # Implement similar parsing logic as in image_processor.py
+        # This method would extract recommendations and details 
+        # using similar techniques to the ImageProcessor
+        
+        return analysis_dict
