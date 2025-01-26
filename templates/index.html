@@ -288,48 +288,103 @@ footer {
 </style>   
   </head>
   <body class="bg-gray-50">
-    <div class="min-h-screen">
+    <div>
       <!-- Navigation -->
-      <nav class="bg-white shadow-md fixed w-full z-50">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div class="flex justify-between h-16 items-center">
-            <div class="flex items-center">
-              <i class="fas fa-cube text-blue-600 text-2xl"></i>
-              <span class="ml-2 text-xl font-semibold">SocioSell</span>
-            </div>
-            <div class="flex space-x-4">
-              <button
-                onclick="switchTab('search')"
-                id="searchTab"
-                class="px-4 py-2 rounded-lg transition-colors"
-              >
-                <i class="fas fa-search mr-2"></i>Search
-              </button>
-              <button
-                onclick="switchTab('upload')"
-                id="uploadTab"
-                class="px-4 py-2 rounded-lg transition-colors"
-              >
-                <i class="fas fa-image mr-2"></i>Image
-              </button>
-              <button
-                onclick="switchTab('video')"
-                id="videoTab"
-                class="px-4 py-2 rounded-lg transition-colors"
-              >
-                <i class="fas fa-video mr-2"></i>Video
-                        </button>   
-                           <button onclick="switchTab('contributors')" id="contributorsTab" class="px-4 py-2 rounded-lg transition-colors">
-                            <i class="fas fa-users mr-2"></i>Contributors
-              </button>
-            </div>
+     <nav class="bg-white shadow-md fixed w-full z-50">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full">
+        <div class="flex justify-between h-16 items-center w-full">
+          <!-- Logo -->
+          <div class="flex items-center">
+            <i class="fas fa-cube text-blue-600 text-2xl"></i>
+            <span class="ml-2 text-xl font-semibold">SocioSell</span>
+          </div>
+          
+          <!-- Hamburger Menu for Small Screens -->
+          <div class="sm:hidden ml-auto">
+          <button
+            id="hamburgerMenu"
+            class="text-gray-500 focus:outline-none"
+            onclick="toggleMenu()"
+          >
+            <i id="menuIcon" class="fas fa-bars text-2xl"></i>
+          </button>
+        </div>
+
+          <!-- Navigation Links -->
+          <div
+            id="navLinks"
+            class="hidden sm:flex space-x-4 transition-all"
+          >
+            <button
+              onclick="switchTab('search'); setActiveTab('search')"
+              id="searchTab"
+              class="px-4 py-2 rounded-lg transition-colors"
+            >
+              <i class="fas fa-search mr-2"></i>Search
+            </button>
+            <button
+              onclick="switchTab('upload'); setActiveTab('upload')"
+              id="uploadTab"
+              class="px-4 py-2 rounded-lg transition-colors text-white bg-blue-500"
+            >
+              <i class="fas fa-image mr-2"></i>Image
+            </button>
+            <button
+              onclick="switchTab('video'); setActiveTab('video')"
+              id="videoTab"
+              class="px-4 py-2 rounded-lg transition-colors"
+            >
+              <i class="fas fa-video mr-2"></i>Video
+            </button>
+            <button
+              onclick="switchTab('contributors'); setActiveTab('contributors')"
+              id="contributorsTab"
+              class="px-4 py-2 rounded-lg transition-colors"
+            >
+              <i class="fas fa-users mr-2"></i>Contributors
+            </button>
           </div>
         </div>
-      </nav>
+      </div>
+
+      <!-- Hidden Menu for Small Screens -->
+      <div id="mobileMenu" class="hidden sm:hidden">
+        <div class="space-y-2 px-4 py-2">
+          <button
+            onclick="switchTab('search'); closeMenu(); setActiveTab('search')"
+            id="searchTabMobile"
+            class="w-full text-left px-4 py-2 rounded-lg transition-colors"
+          >
+            <i class="fas fa-search mr-2"></i>Search
+          </button>
+          <button
+            onclick="switchTab('upload'); closeMenu(); setActiveTab('upload')"
+            id="uploadTabMobile"
+            class="w-full text-left px-4 py-2 rounded-lg transition-colors text-blue-500"
+          >
+            <i class="fas fa-image mr-2"></i>Image
+          </button>
+          <button
+            onclick="switchTab('video'); closeMenu(); setActiveTab('video')"
+            id="videoTabMobile"
+            class="w-full text-left px-4 py-2 rounded-lg transition-colors"
+          >
+            <i class="fas fa-video mr-2"></i>Video
+          </button>
+          <button
+            onclick="switchTab('contributors'); closeMenu(); setActiveTab('contributors')"
+            id="contributorsTabMobile"
+            class="w-full text-left px-4 py-2 rounded-lg transition-colors"
+          >
+            <i class="fas fa-users mr-2"></i>Contributors
+          </button>
+        </div>
+      </div>
+    </nav>
 
       <!-- Main Content -->
       <main class="pt-20 pb-8 px-4">
-        <div class="max-w-7xl mx-auto">
+        <div class="max-w-7xl mx-auto mt-14">
           <!-- Upload Section -->
           <div id="uploadSection" class="space-y-8">
             <div class="text-center">
@@ -351,7 +406,7 @@ footer {
                     Drag and drop your image here, or
                   </p>
                   <label
-                    class="bg-blue-600 text-white px-4 py-2 rounded-lg cursor-pointer hover:bg-blue-700"
+                    class="bg-blue-600 text-white px-4 py-2 rounded-lg cursor-pointer hover:bg-blue-700" style="color: white;"
                   >
                     Choose File
                     <input
@@ -363,7 +418,7 @@ footer {
                     />
                   </label>
                 </div>
-                <div class="relative">
+                <div class="relative bg-black/5 bg-opacity-10">
                   <img id="previewImage" class="hidden max-h-48 mx-auto" />
                   <i
                     class="fa-solid fa-circle-xmark text-red-400 hover:text-red-600 absolute top-2 right-2 hidden"
@@ -376,13 +431,21 @@ footer {
               <div class="space-y-4">
                 <div>
                   <label class="block text-sm font-medium text-gray-700 mb-1"
-                    >Product Title</label
-                  >
+                    >Product Title
                   <input
                     type="text"
                     id="productTitle"
                     class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
                   />
+                  </label>
+                </div>
+                <div class="relative">
+                  <img id="previewImage" class="hidden max-h-48 mx-auto" />
+                  <i
+                    class="fa-solid fa-circle-xmark text-red-400 hover:text-red-600 absolute top-2 right-2 hidden"
+                    id="removeButton"
+                    onclick="removeFile()"
+                  ></i>
                 </div>
                 <div>
                   <label class="block text-sm font-medium text-gray-700 mb-1"
@@ -469,7 +532,7 @@ footer {
                     Drag and drop your video here, or
                   </p>
                   <label
-                    class="bg-blue-600 text-white px-4 py-2 rounded-lg cursor-pointer hover:bg-blue-700"
+                    class="bg-blue-600 text-white px-4 py-2 rounded-lg cursor-pointer hover:bg-blue-700" style="color: white;"
                   >
                     Choose Video
                     <input
@@ -481,7 +544,7 @@ footer {
                   </label>
                 </div>
 
-                <div class="relative">
+                <div class="relative bg-black/5 bg-opacity-10">
                   <video
                     id="previewVideo"
                     class="hidden max-h-48 mx-auto"
@@ -634,50 +697,48 @@ footer {
       </div>
     </div>
 
-    <script
-    document.addEventListener('DOMContentLoaded', () => {
-      const imageUploadArea = document.getElementById('image-upload-area');
-      const videoUploadArea = document.getElementById('video-upload-area');
-      const imageUpload = document.getElementById('image-upload');
-      const videoUpload = document.getElementById('video-upload');
-      /* Scroll effect for header */
-window.addEventListener('scroll', function() {
-    const header = document.querySelector('header');
-    if (window.scrollY > 50) {
-        header.classList.add('scrolled');
-    } else {
-        header.classList.remove('scrolled');
-    }
-});
-      function handleDragOver(e) {
-          e.preventDefault();
-          e.stopPropagation();
+    <script>
+       // Function to toggle the hamburger menu
+      function toggleMenu() {
+        const mobileMenu = document.getElementById("mobileMenu");
+        const menuIcon = document.getElementById("menuIcon");
+
+        // Toggle visibility of the mobile menu
+        if (mobileMenu.classList.contains("hidden")) {
+          mobileMenu.classList.remove("hidden");
+          menuIcon.classList.remove("fa-bars");
+          menuIcon.classList.add("fa-times"); // Change to X icon
+        } else {
+          mobileMenu.classList.add("hidden");
+          menuIcon.classList.remove("fa-times");
+          menuIcon.classList.add("fa-bars"); // Change back to hamburger icon
+        }
       }
-  
-      function handleDrop(e, fileInput) {
-          e.preventDefault();
-          e.stopPropagation();
-          if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-              fileInput.files = e.dataTransfer.files;
-              handleFileUpload(fileInput);
-          }
+
+      // Function to close the mobile menu
+      function closeMenu() {
+        toggleMenu()
+        const mobileMenu = document.getElementById('mobileMenu');
+        mobileMenu.classList.add('hidden');
       }
-  
-      function handleFileUpload(fileInput) {
-          // Process the uploaded file here
-          console.log('File uploaded:', fileInput.files[0].name);
+
+      // Function to set the active class for the selected tab
+      function setActiveTab(tab) {
+        // Remove active class from all tabs
+        const allTabs = document.querySelectorAll('.px-4');
+        allTabs.forEach(tab => {
+          tab.classList.remove('bg-blue-500');
+          tab.classList.remove('text-white');
+          tab.classList.remove('text-blue-500');
+        });
+
+        // Add active class to the clicked tab
+        const activeTab = document.getElementById(tab + 'Tab');
+        activeTab.classList.add('bg-blue-500', 'text-white');
+        const activeTabMobile = document.getElementById(tab + 'TabMobile');
+        activeTabMobile.classList.add('text-blue-500');
       }
-  
-      imageUploadArea.addEventListener('dragover', handleDragOver);
-      imageUploadArea.addEventListener('drop', (e) => handleDrop(e, imageUpload));
-      videoUploadArea.addEventListener('dragover', handleDragOver);
-      videoUploadArea.addEventListener('drop', (e) => handleDrop(e, videoUpload));
-  
-      imageUpload.addEventListener('change', () => handleFileUpload(imageUpload));
-      videoUpload.addEventListener('change', () => handleFileUpload(videoUpload));
-  };
-  
- 
+      
       const config = {
           github: {
               token: '', // ---------> add a secret token here
