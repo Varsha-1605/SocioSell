@@ -15,6 +15,8 @@ router = APIRouter()
 async def upload_video(
     file: Optional[UploadFile] = File(None),  # Made file optional
     title: str = Form(...),
+    caption: Optional[str] = Form(None),
+    analysis=None,
     description: Optional[str] = Form(None)
 ):
     from main import logger
@@ -200,6 +202,9 @@ async def upload_video(
         return {
             "status": "success",
             "message": "Video analyzed successfully",
+            "title": title,
+            "caption": caption,
+            "analysis": analysis or {},
             "video_info": video_data,
             "video_listing": video_listing_data,
         }

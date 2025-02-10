@@ -3,6 +3,7 @@ import os
 from dotenv import load_dotenv
 import logging
 from PIL import Image
+import json
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -18,25 +19,38 @@ class ImageProcessor:
         self.model = genai.GenerativeModel("gemini-1.5-pro-latest")
     
     async def analyze_product(self, image: Image.Image):
-        """Analyze product image and return structured data"""
+        """Analyze product image and return structured data with recommendations"""
         try:
             analysis_prompt = [
-                """Analyze this product image and provide detailed information in the following format exactly:
+                """Analyze this product image. Provide a detailed analysis and 5 product recommendations following this exact format:
 
 BEGIN_ANALYSIS
 Product Name: [exact product name]
 Category: [main category]
 Subcategory: [sub category]
 Description: [2-3 sentences about the product]
-Price: [visible pricing information]
+Price Range: [estimated price range]
 Key Features:
 - [feature 1]
 - [feature 2]
 - [feature 3]
-Search Keywords:
-- [keyword 1]
-- [keyword 2]
-- [keyword 3]
+
+Recommendations:
+1. [Product 1 Name]
+   - Price: [Price]
+   - Key Similarities: [2-3 key matching features]
+2. [Product 2 Name]
+   - Price: [Price]
+   - Key Similarities: [2-3 key matching features]
+3. [Product 3 Name]
+   - Price: [Price]
+   - Key Similarities: [2-3 key matching features]
+4. [Product 4 Name]
+   - Price: [Price]
+   - Key Similarities: [2-3 key matching features]
+5. [Product 5 Name]
+   - Price: [Price]
+   - Key Similarities: [2-3 key matching features]
 END_ANALYSIS""",
                 image
             ]
@@ -61,9 +75,9 @@ END_ANALYSIS""",
             'category': '',
             'subcategory': '',
             'description': '',
-            'price': '',
+            'price_range': '',
             'key_features': [],
-            'search_keywords': []
+            'recommendations': []
         }
         
         try:
@@ -74,6 +88,7 @@ END_ANALYSIS""",
             
             lines = content.split('\n')
             current_section = None
+            recommendation_index = 0
             
             for line in lines:
                 line = line.strip()
@@ -88,17 +103,24 @@ END_ANALYSIS""",
                     analysis_dict['subcategory'] = line.split(':', 1)[1].strip()
                 elif line.startswith('Description:'):
                     analysis_dict['description'] = line.split(':', 1)[1].strip()
-                elif line.startswith('Price:'):
-                    analysis_dict['price'] = line.split(':', 1)[1].strip()
+                elif line.startswith('Price Range:'):
+                    analysis_dict['price_range'] = line.split(':', 1)[1].strip()
                 elif line.startswith('Key Features:'):
                     current_section = 'features'
-                elif line.startswith('Search Keywords:'):
-                    current_section = 'keywords'
+                elif line.startswith('Recommendations:'):
+                    current_section = 'recommendations'
+                    recommendation_index = 0
+                elif line.startswith('1.') or line.startswith('2.') or line.startswith('3.') or line.startswith('4.') or line.startswith('5.'):
+                    recommendation_index += 1
+                    current_recommendation = {'name': line.split('.', 1)[1].strip()}
+                    analysis_dict['recommendations'].append(current_recommendation)
+                elif line.startswith('- Price:') and current_section == 'recommendations':
+                    analysis_dict['recommendations'][recommendation_index-1]['price'] = line.split(':', 1)[1].strip()
+                elif line.startswith('- Key Similarities:') and current_section == 'recommendations':
+                    analysis_dict['recommendations'][recommendation_index-1]['similarities'] = line.split(':', 1)[1].strip()
                 elif line.startswith('- '):
                     if current_section == 'features':
                         analysis_dict['key_features'].append(line.strip('- '))
-                    elif current_section == 'keywords':
-                        analysis_dict['search_keywords'].append(line.strip('- '))
             
             return analysis_dict
             
