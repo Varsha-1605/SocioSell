@@ -36,7 +36,7 @@ try:
         MONGODB_URL,
         maxPoolSize=20,
         minPoolSize=5,
-        connectTimeoutMS=10000   
+        connectTimeoutMS=30000   
     )
     db = client.social_media_products
     logger.info("MongoDB client initialized with connection pooling")
