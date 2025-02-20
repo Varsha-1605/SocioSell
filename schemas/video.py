@@ -8,8 +8,12 @@ from fastapi import File, UploadFile, Form
 from video_data import VIDEO_DATABASE
 from datetime import datetime
 from schemas.image import get_categories
-    
+from fastapi import APIRouter, HTTPException, UploadFile
+from video_processor import VideoProcessor
+import os
+video_processor = VideoProcessor(os.getenv("GOOGLE_API_KEY"))
 router = APIRouter()
+from fastapi.encoders import jsonable_encoder
 
 # Upload and analyze a product video for listing generation.
 async def upload_video(
@@ -20,6 +24,52 @@ async def upload_video(
     from main import logger
     from main import db
     try:
+        raw_response = await video_processor.process_video(file)
+
+        if raw_response:
+            unique_id = f"video_{abs(hash(title))}"[:15]
+
+            video_data = Video(
+                id=unique_id,
+                title=title,
+                category=raw_response.get("category", "N/A"),
+                subcategory=raw_response.get("subcategory", "N/A"),
+                duration=raw_response.get("duration", "N/A"),
+                views=raw_response.get("views", "N/A"),
+                highlights=raw_response.get("highlights", []),
+                transcript_summary=raw_response.get("description", "N/A"),
+                key_features=raw_response.get("key_features", []),
+                price_range=raw_response.get("price", "N/A"),
+            ).model_dump()
+
+            video = await db["videos"].insert_one(video_data)
+            video_id = str(video.inserted_id)
+
+            video_listing_data = VideoListing(
+                video_id=video_id,
+                platform=raw_response.get("platform", "N/A"),
+                title=title,
+                views=raw_response.get("views", "N/A"),
+                rating=4.8,
+                key_timestamps={},
+                product_links=[
+                    ProductLink(store=link.get("store", "Unknown"), price=link.get("price", "Not Available"))
+                    for link in raw_response.get("product_links", [])
+                ],
+            ).model_dump()
+
+            await db["video_listings"].insert_one(video_listing_data)
+
+            # Ensure ObjectId fields are serialized before returning the response
+            video_data["_id"] = str(video_data.get("_id"))
+            video_listing_data["_id"] = str(video_listing_data.get("_id"))
+
+            return jsonable_encoder({
+                "status": "success",
+                "message": "Video analyzed successfully",
+                "video_info": video_data,
+                "video_listing": video_listing_data,
+            })
         # Common keywords for each category
         category_keywords = {
             "electronics": ["iphone", "macbook", "samsung", "laptop", "phone", "computer", "tech"],

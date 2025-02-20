@@ -16,6 +16,8 @@ import time
 import yt_dlp as youtube_dl
 import backoff
 from functools import wraps
+import imageio_ffmpeg
+import tempfile
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -71,9 +73,10 @@ class VideoProcessor:
         genai.configure(api_key=google_api_key)
         self.model = genai.GenerativeModel('gemini-1.5-pro-latest')
         
-        self.ffmpeg_path = r"C:/ProgramData/chocolatey/lib/ffmpeg/tools/ffmpeg/bin/ffmpeg.exe"
+        self.ffmpeg_path = imageio_ffmpeg.get_ffmpeg_exe()  # Get the bundled FFmpeg path
         if not os.path.exists(self.ffmpeg_path):
             raise RuntimeError(f"FFmpeg not found at: {self.ffmpeg_path}")
+        print(f"Using FFmpeg from: {self.ffmpeg_path}")
         
         self.audio_processor = Wav2Vec2Processor.from_pretrained("facebook/wav2vec2-base-960h")
         self.audio_model = Wav2Vec2ForCTC.from_pretrained("facebook/wav2vec2-base-960h")
@@ -230,52 +233,161 @@ Keep the description professional and engaging."""
     @handle_rate_limit(max_tries=3, initial_wait=2)
     async def _generate_description(self, frame_descriptions, audio_transcription=""):
         await self.rate_limiter.wait()
-        prompt = f"""Based on the following frame descriptions and audio transcription, create a comprehensive 
-e-commerce product description:
+        prompt = f"""Analyze this product video and provide detailed information in the following format exactly. If any value is not found, write N/A.
 
+BEGIN_ANALYSIS
+Product Name: [exact product name of visible product in video]
+Category: [main category of visible product in video]
+Subcategory: [sub category of visible product in video]
+Platform: [platform where similar video is available, only name]
+Duration: [Duration of video on that platform]
+Views: [visible views of video on that platform]
+Transcript Summary: [2-3 sentences about the product]
+Price: [visible pricing information]
+Key Timestamps: [visible timestamps information]
 Visual Descriptions:
 {chr(10).join(frame_descriptions)}
-
-Audio Transcription:
-{audio_transcription}
-
-Please provide a well-structured description that includes:
-1. Product overview
-2. Key features and benefits
-3. Technical specifications
-4. Recommended uses
-5. Notable information from the audio narration"""
+Highlights: 
+- [highlight 1]
+- [highlight 2]
+- [highlight 3]
+Key Features:
+- [feature 1]
+- [feature 2]
+- [feature 3]
+Search Keywords:
+- [keyword 1]
+- [keyword 2]
+- [keyword 3]
+Product links:
+- [Product link 1, Price on that platform]
+- [Product link 2, Price on that platform]
+- [Product link 3, Price on that platform]
+END_ANALYSIS"""
         
         response = self.model.generate_content(prompt)
         return response.text
 
-    async def process_video(self, video_url):
+    async def process_video(self, video_file):
         try:
-            video_path = await self.download_video(video_url)
-            if not video_path:
-                return {'status': 'error', 'message': 'Failed to download video'}
             
             try:
-                waveform, sr = await self._extract_audio(video_path)
+                with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as temp_video:
+                    temp_video.write(await video_file.read())
+                    temp_video_path = temp_video.name
+                waveform, sr = await self._extract_audio(temp_video_path)
                 audio_transcription = await self._transcribe_audio(waveform) if waveform is not None else ""
                 
-                frames = await self._extract_frames(video_path)
+                frames = await self._extract_frames(temp_video_path)
                 if not frames:
                     return {'status': 'error', 'message': 'Failed to extract frames from video'}
                 
                 frame_descriptions = await self._analyze_frames(frames)
                 final_description = await self._generate_description(frame_descriptions, audio_transcription)
+                analysis_dict = self._parse_analysis(final_description)
+                analysis_dict['status'] = 'success'
                 
-                return {
-                    'status': 'success',
-                    'frame_descriptions': frame_descriptions,
-                    'audio_transcription': audio_transcription,
-                    'final_description': final_description
-                }
+                return analysis_dict
                 
             finally:
-                if os.path.exists(str(video_path)):
-                    os.remove(str(video_path))
+                print("Video analyzed successfully")
                     
         except Exception as e:
             return {'status': 'error', 'message': str(e)}
+        
+    def _parse_analysis(self, text):
+        """Parse the analysis text into structured format"""
+        analysis_dict = {
+            'product_name': "Not Available",
+            'category': "Not Available",
+            'subcategory': "Not Available",
+            'price': "Not Available",
+            'key_features': [],
+            'search_keywords': [],
+            'highlights': [],
+            'key_timestamps': {},
+            'product_links': [],
+            'platform': "Not Available",
+            'duration': "Not Available",
+            'views': "Not Available",
+            'transcript_summary': "Not Available",
+        }
+
+        try:
+            # Extract only content between BEGIN_ANALYSIS and END_ANALYSIS
+            if 'BEGIN_ANALYSIS' in text and 'END_ANALYSIS' in text:
+                content = text.split('BEGIN_ANALYSIS')[-1].split('END_ANALYSIS')[0].strip()
+            else:
+                content = text.strip()
+
+            lines = content.split('\n')
+            current_section = None
+
+            for line in lines:
+                line = line.strip()
+                if not line:
+                    continue
+
+                # Direct assignments for labeled fields
+                if line.startswith('Product Name:'):
+                    analysis_dict['product_name'] = line.split(':', 1)[1].strip()
+                elif line.startswith('Category:'):
+                    analysis_dict['category'] = line.split(':', 1)[1].strip()
+                elif line.startswith('Subcategory:'):
+                    analysis_dict['subcategory'] = line.split(':', 1)[1].strip()
+                elif line.startswith('Platform:'):
+                    analysis_dict['platform'] = line.split(':', 1)[1].strip()
+                elif line.startswith('Duration:'):
+                    analysis_dict['duration'] = line.split(':', 1)[1].strip()
+                elif line.startswith('Views:'):
+                    analysis_dict['views'] = line.split(':', 1)[1].strip()
+                elif line.startswith('Transcript Summary:'):
+                    analysis_dict['transcript_summary'] = line.split(':', 1)[1].strip()
+                elif line.startswith('Price:'):
+                    analysis_dict['price'] = line.split(':', 1)[1].strip()
+
+                # Handle Sections Based on Headers
+                elif line.startswith('Key Features:'):
+                    current_section = 'features'
+                elif line.startswith('Search Keywords:'):
+                    current_section = 'keywords'
+                elif line.startswith('Highlights:'):
+                    current_section = 'highlights'
+                elif line.startswith('Key Timestamps:'):
+                    current_section = 'timestamps'
+                elif line.startswith('Product links:'):
+                    current_section = 'links'
+
+                # Parse Lists
+                elif line.startswith('- '):
+                    item = line.strip('- ').strip()
+                    if current_section == 'features':
+                        analysis_dict['key_features'].append(item)
+                    elif current_section == 'keywords':
+                        analysis_dict['search_keywords'].append(item)
+                    elif current_section == 'highlights':
+                        analysis_dict['highlights'].append(item)
+                    elif current_section == 'links':
+                        # Parse links (e.g., '- [Product link 1, $29.99]')
+                        if ',' in item:
+                            link, price = item.rsplit(',', 1)
+                            analysis_dict['product_links'].append({
+                                "store": link.strip(),
+                                "price": price.strip()
+                            })
+                        else:
+                            analysis_dict['product_links'].append({
+                                "store": item.strip(),
+                                "price": "Not Available"
+                            })
+
+                # Parse Timestamps (e.g., '00:15: Intro scene')
+                elif current_section == 'timestamps' and ':' in line:
+                    timestamp, desc = line.split(':', 1)
+                    analysis_dict['key_timestamps'][timestamp.strip()] = desc.strip()
+
+            return analysis_dict
+
+        except Exception as e:
+            logger.error(f"Error parsing analysis: {str(e)}")
+            return analysis_dict
