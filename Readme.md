@@ -271,7 +271,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## 🙏 Acknowledgments
 
 - All our amazing contributors
-- [Social Winter of Code](https://swoc.tech) for selecting our project
+- [Social Winter of Code](https://socialwinterofcode.com/) for selecting our project
 - [Google Generative AI](https://cloud.google.com/ai-platform)
 - [MongoDB Atlas](https://www.mongodb.com/atlas)
 - [TailwindCSS](https://tailwindcss.com/)
